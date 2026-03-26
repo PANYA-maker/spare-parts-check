@@ -50,15 +50,24 @@
         </div>
 
         <!-- Filters Section -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <!-- Station Filter -->
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <label class="block text-sm font-semibold text-slate-600 mb-2">เลือกเครื่องจักร (Machine)</label>
+                <label class="block text-sm font-semibold text-slate-600 mb-2 italic">กรองตาม Station</label>
+                <select id="station-filter" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <option value="">ทั้งหมด (All Stations)</option>
+                </select>
+            </div>
+            <!-- Machine Filter -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <label class="block text-sm font-semibold text-slate-600 mb-2 italic">กรองตามเครื่องจักร (Machine)</label>
                 <select id="machine-filter" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                     <option value="">ทั้งหมด (All Machines)</option>
                 </select>
             </div>
+            <!-- Type Search -->
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <label class="block text-sm font-semibold text-slate-600 mb-2">ค้นหาประเภท/รุ่น (Type)</label>
+                <label class="block text-sm font-semibold text-slate-600 mb-2 italic text-blue-600">ค้นหาประเภท/รุ่น (Type)</label>
                 <input type="text" id="type-search" placeholder="พิมพ์ชื่อรุ่น หรือประเภท..." 
                     class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             </div>
@@ -162,17 +171,31 @@
             document.getElementById('status-container').classList.add('hidden');
             document.getElementById('content-area').classList.remove('hidden');
 
-            const filter = document.getElementById('machine-filter');
-            const currentFilterValue = filter.value;
+            const machineFilter = document.getElementById('machine-filter');
+            const stationFilter = document.getElementById('station-filter');
+            const currentMValue = machineFilter.value;
+            const currentSValue = stationFilter.value;
 
+            // 1. อัปเดตตัวเลือกใน Machine Filter
             const machines = [...new Set(rawData.map(item => item.Machine))].filter(Boolean).sort();
-            filter.innerHTML = '<option value="">ทั้งหมด (All Machines)</option>';
+            machineFilter.innerHTML = '<option value="">ทั้งหมด (All Machines)</option>';
             machines.forEach(m => {
                 const opt = document.createElement('option');
                 opt.value = m;
                 opt.textContent = m;
-                if (m === currentFilterValue) opt.selected = true;
-                filter.appendChild(opt);
+                if (m === currentMValue) opt.selected = true;
+                machineFilter.appendChild(opt);
+            });
+
+            // 2. อัปเดตตัวเลือกใน Station Filter
+            const stations = [...new Set(rawData.map(item => item.Station))].filter(Boolean).sort();
+            stationFilter.innerHTML = '<option value="">ทั้งหมด (All Stations)</option>';
+            stations.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = s;
+                if (s === currentSValue) opt.selected = true;
+                stationFilter.appendChild(opt);
             });
 
             const headerRow = document.getElementById('table-header');
@@ -187,27 +210,29 @@
 
             runFilter();
 
-            if (!filter.dataset.initialized) {
-                filter.addEventListener('change', runFilter);
+            if (!machineFilter.dataset.initialized) {
+                machineFilter.addEventListener('change', runFilter);
+                stationFilter.addEventListener('change', runFilter);
                 document.getElementById('type-search').addEventListener('input', runFilter);
-                filter.dataset.initialized = "true";
+                machineFilter.dataset.initialized = "true";
             }
         }
 
         function runFilter() {
             const mVal = document.getElementById('machine-filter').value.toLowerCase();
+            const sVal = document.getElementById('station-filter').value.toLowerCase();
             const tVal = document.getElementById('type-search').value.toLowerCase();
 
             const filtered = rawData.filter(item => {
                 const matchM = !mVal || (item.Machine && item.Machine.toLowerCase() === mVal);
+                const matchS = !sVal || (item.Station && item.Station.toLowerCase() === sVal);
                 const matchT = !tVal || (item.Type && item.Type.toLowerCase().includes(tVal));
-                return matchM && matchT;
+                return matchM && matchS && matchT;
             });
 
             renderData(filtered);
         }
 
-        // ฟังก์ชันช่วยในการจัดรูปแบบสถานะ (Status)
         function formatStatusBadge(value) {
             if (!value) return '-';
             const statusText = value.trim().toLowerCase();
@@ -261,23 +286,33 @@
                 
                 let cardHtml = `
                     <div class="flex justify-between items-start">
-                        <span class="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded uppercase">${row.Machine || '-'}</span>
-                        <span class="text-[10px] text-slate-400">${row.Station || '-'}</span>
+                        <span class="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded uppercase tracking-wider">${row.Machine || '-'}</span>
+                        <span class="text-[10px] text-slate-400 font-medium bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">${row.Station || '-'}</span>
                     </div>
-                    <div class="flex justify-between items-center gap-2">
-                        <h3 class="font-bold text-slate-800 leading-tight">${row.Type || 'Unknown Item'}</h3>
-                        <div class="shrink-0">${formatStatusBadge(row.Status)}</div>
+                    
+                    <div class="flex justify-between items-start gap-4">
+                        <div class="flex-1">
+                            <h3 class="font-bold text-slate-800 leading-tight mb-1">${row.Type || 'Unknown Item'}</h3>
+                            <p class="text-xs text-slate-500 line-clamp-2">${row.Detail || '-'}</p>
+                        </div>
+                        <div class="flex flex-col items-end shrink-0 gap-1.5">
+                            ${formatStatusBadge(row.Status)}
+                            <!-- รหัสอะไหล่ Item อยู่ใต้ Status -->
+                            <div class="bg-slate-800 text-white px-2 py-1 rounded-md text-[9px] font-mono font-bold shadow-sm">
+                                ${row.Item || '-'}
+                            </div>
+                        </div>
                     </div>
-                    <p class="text-xs text-slate-500">${row.Detail || '-'}</p>
-                    <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-50">
+
+                    <div class="grid grid-cols-2 gap-2 pt-3 border-t border-slate-50">
                 `;
 
                 keys.forEach(key => {
                     // ไม่แสดงคอลัมน์ที่เป็นหัวข้อไปแล้วซ้ำใน Mobile
-                    if (!['Machine', 'Station', 'Type', 'Detail', 'Status'].includes(key)) {
+                    if (!['Machine', 'Station', 'Type', 'Detail', 'Status', 'Item'].includes(key)) {
                         cardHtml += `
-                            <div>
-                                <span class="block text-[9px] text-slate-400 uppercase font-bold">${key}</span>
+                            <div class="bg-slate-50/50 p-2 rounded-xl">
+                                <span class="block text-[8px] text-slate-400 uppercase font-bold tracking-tighter mb-0.5">${key}</span>
                                 <span class="text-xs text-slate-700 font-semibold">${row[key] || '-'}</span>
                             </div>
                         `;
