@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spare Parts Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Kanit', sans-serif; background-color: #f1f5f9; }
+        .loader {
+            border-top-color: #3b82f6;
+            animation: spinner 1s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Custom Scrollbar for desktop */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div class="flex items-center gap-4">
+                <div class="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold text-slate-800">Spare Parts Dashboard</h1>
+                    <p class="text-slate-500 text-sm md:text-base">ระบบตรวจสอบข้อมูลอะไหล่ RAW_SPARE_DATA</p>
+                </div>
+            </div>
+            <div id="stats" class="bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
+                <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <div>
+                    <span class="block text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Spare Parts</span>
+                    <span id="total-count" class="text-2xl font-bold text-slate-800">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <!-- Machine Filter -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 transition-all hover:shadow-md">
+                <label class="flex items-center gap-2 text-sm font-semibold text-slate-600 mb-3">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                    กรองตามเครื่องจักร (Machine)
+                </label>
+                <select id="machine-filter" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer">
+                    <option value="">ทั้งหมด (Show All)</option>
+                </select>
+            </div>
+            <!-- Type Search -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 transition-all hover:shadow-md">
+                <label class="flex items-center gap-2 text-sm font-semibold text-slate-600 mb-3">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    ค้นหาตามรุ่น/ประเภท (Type)
+                </label>
+                <div class="relative">
+                    <input type="text" id="type-search" placeholder="ระบุชื่อ Type หรือรุ่นอะไหล่..." 
+                        class="w-full p-3 pl-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all">
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="flex flex-col items-center justify-center py-24">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-14 w-14 mb-4"></div>
+            <h2 class="text-center text-slate-400 font-medium italic">กำลังเชื่อมต่อข้อมูลจาก Google Sheets...</h2>
+        </div>
+
+        <!-- Desktop Table View -->
+        <div class="hidden md:block overflow-x-auto bg-white shadow-xl shadow-slate-200/50 border border-slate-200 rounded-2xl">
+            <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                    <tr id="table-header">
+                        <!-- Headers generated dynamically -->
+                    </tr>
+                </thead>
+                <tbody id="table-body" class="bg-white divide-y divide-slate-100">
+                    <!-- Data generated dynamically -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile Card View -->
+        <div id="mobile-view" class="md:hidden space-y-4">
+            <!-- Cards generated dynamically -->
+        </div>
+
+        <!-- No Data Message -->
+        <div id="no-data" class="hidden py-32 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
+            <div class="mb-4 flex justify-center text-slate-300">
+                <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <p class="text-slate-400 font-medium text-lg">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</p>
+            <button onclick="resetFilters()" class="mt-4 text-blue-600 font-semibold hover:underline">ล้างตัวกรองทั้งหมด</button>
+        </div>
+    </div>
+
+    <script>
+        // ลิงก์ Google Sheets สำหรับส่งออก CSV โดยตรง
+        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1plzDBcz-b6oqHe9f31CrbeoFnWt0XtFH-xsbEqVPVjc/export?format=csv&gid=0';
+
+        let rawData = [];
+        const machineFilter = document.getElementById('machine-filter');
+        const typeSearch = document.getElementById('type-search');
+        const tableHeader = document.getElementById('table-header');
+        const tableBody = document.getElementById('table-body');
+        const mobileView = document.getElementById('mobile-view');
+        const loading = document.getElementById('loading');
+        const noData = document.getElementById('no-data');
+        const totalCount = document.getElementById('total-count');
+
+        async function loadData() {
+            try {
+                Papa.parse(SHEET_CSV_URL, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        // กรองแถวที่ว่างเปล่าออก
+                        rawData = results.data.filter(row => Object.values(row).some(val => val && val.trim() !== ""));
+                        initDashboard();
+                    },
+                    error: function(err) {
+                        console.error("Error loading CSV:", err);
+                        loading.innerHTML = `
+                            <div class="text-red-500 text-center">
+                                <p class="font-bold">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
+                                <p class="text-sm">โปรดตรวจสอบว่าไฟล์ Google Sheet ตั้งค่าแชร์เป็น "ทุกคนที่มีลิงก์สิทธิ์อ่าน"</p>
+                            </div>
+                        `;
+                    }
+                });
+            } catch (error) {
+                console.error("Fetch Error:", error);
+            }
+        }
+
+        function initDashboard() {
+            loading.classList.add('hidden');
+            
+            // สร้างตัวเลือกใน Machine Filter (คอลัมน์ Machine)
+            const machines = [...new Set(rawData.map(item => item.Machine))].filter(Boolean).sort();
+            machines.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                machineFilter.appendChild(opt);
+            });
+
+            // สร้างหัวตารางสำหรับ Desktop
+            if (rawData.length > 0) {
+                const keys = Object.keys(rawData[0]);
+                keys.forEach(key => {
+                    const th = document.createElement('th');
+                    th.className = "px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest";
+                    th.textContent = key;
+                    tableHeader.appendChild(th);
+                });
+            }
+
+            renderData(rawData);
+
+            // Listeners
+            machineFilter.addEventListener('change', filterData);
+            typeSearch.addEventListener('input', filterData);
+        }
+
+        function resetFilters() {
+            machineFilter.value = "";
+            typeSearch.value = "";
+            renderData(rawData);
+        }
+
+        function filterData() {
+            const mValue = machineFilter.value.toLowerCase();
+            const tValue = typeSearch.value.toLowerCase();
+
+            const filtered = rawData.filter(item => {
+                const matchMachine = !mValue || (item.Machine && item.Machine.toLowerCase() === mValue);
+                const matchType = !tValue || (item.Type && item.Type.toLowerCase().includes(tValue));
+                return matchMachine && matchType;
+            });
+
+            renderData(filtered);
+        }
+
+        function renderData(data) {
+            tableBody.innerHTML = '';
+            mobileView.innerHTML = '';
+            totalCount.textContent = data.length;
+
+            if (data.length === 0) {
+                noData.classList.remove('hidden');
+                return;
+            } else {
+                noData.classList.add('hidden');
+            }
+
+            const keys = Object.keys(data[0]);
+
+            data.forEach(row => {
+                // --- Desktop View ---
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-blue-50/50 transition-colors group";
+                keys.forEach(key => {
+                    const td = document.createElement('td');
+                    td.className = "px-6 py-4 whitespace-nowrap text-sm text-slate-600 border-b border-slate-100 group-last:border-0";
+                    
+                    // ปรับแต่งสีสำหรับสถานะหรือคอลัมน์สำคัญ
+                    if (key === 'Machine') {
+                        td.innerHTML = `<span class="px-2 py-1 bg-slate-100 rounded text-slate-700 font-semibold text-xs">${row[key] || '-'}</span>`;
+                    } else if (key === 'Type') {
+                        td.className += " font-medium text-slate-900";
+                        td.textContent = row[key] || '-';
+                    } else {
+                        td.textContent = row[key] || '-';
+                    }
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
+
+                // --- Mobile View (Cards) ---
+                const card = document.createElement('div');
+                card.className = "bg-white p-5 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden";
+                
+                let cardContent = `
+                    <div class="flex flex-col gap-1 mb-4">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] font-bold text-blue-500 uppercase tracking-tighter">${row.Station || 'General'}</span>
+                            <span class="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100">${row.Machine || 'No Machine'}</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-800 leading-tight">${row.Type || 'Unknown Type'}</h3>
+                        <p class="text-sm text-slate-500">${row.Detail || '-'}</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 pt-3 border-t border-slate-50">
+                `;
+
+                keys.forEach(key => {
+                    // ไม่แสดงคอลัมน์ที่เป็นหัวข้อไปแล้วซ้ำ
+                    if (!['Type', 'Detail', 'Machine', 'Station'].includes(key)) {
+                        cardContent += `
+                            <div>
+                                <span class="block text-[10px] text-slate-400 uppercase font-bold">${key}</span>
+                                <span class="text-sm text-slate-700 font-semibold">${row[key] || '-'}</span>
+                            </div>
+                        `;
+                    }
+                });
+                
+                cardContent += `</div>`;
+                card.innerHTML = cardContent;
+                mobileView.appendChild(card);
+            });
+        }
+
+        window.onload = loadData;
+    </script>
+</body>
+</html>
