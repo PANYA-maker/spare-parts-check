@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Kanit', sans-serif; background-color: #f1f5f9; }
+        body { font-family: 'Kanit', sans-serif; background-color: #f8fafc; }
         .loader {
             border-top-color: #3b82f6;
             animation: spinner 1s linear infinite;
@@ -17,141 +17,170 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .status-badge {
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
+        .refresh-spinning {
+            animation: spinner 1s linear infinite;
         }
     </style>
 </head>
 <body class="p-4 md:p-8">
 
     <div class="max-w-7xl mx-auto">
-        <!-- Header -->
+        <!-- Header Section -->
         <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div class="flex items-center gap-4">
-                <div class="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200">
+                <div class="p-3 bg-blue-600 rounded-2xl shadow-lg">
                     <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
                 </div>
                 <div>
                     <h1 class="text-2xl md:text-3xl font-bold text-slate-800">Spare Parts Dashboard</h1>
-                    <p class="text-slate-500 text-sm md:text-base">ตรวจสอบข้อมูลอะไหล่ RAW_SPARE_DATA</p>
+                    <p class="text-slate-500 text-sm">อัปเดตล่าสุด: <span id="last-updated" class="font-medium text-blue-600">-</span></p>
                 </div>
             </div>
-            <div id="stats" class="bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
-                <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <div>
-                    <span class="block text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Items</span>
-                    <span id="total-count" class="text-2xl font-bold text-slate-800">0</span>
+            
+            <div class="flex items-center gap-3">
+                <button id="refresh-btn" onclick="fetchData(true)" class="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl border border-slate-200 shadow-sm transition-all active:scale-95">
+                    <svg id="refresh-icon" class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <span class="font-semibold text-sm">รีเฟรชข้อมูล</span>
+                </button>
+                <div class="bg-white px-6 py-2 rounded-xl shadow-sm border border-slate-200 flex items-center gap-3">
+                    <span id="total-count" class="text-xl font-bold text-blue-600">0</span>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold leading-tight">รายการ<br>ทั้งหมด</span>
                 </div>
             </div>
         </div>
 
         <!-- Filters Section -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <!-- Machine Filter -->
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <label class="flex items-center gap-2 text-sm font-semibold text-slate-600 mb-3">
-                    กรองตามเครื่องจักร (Machine)
-                </label>
+                <label class="block text-sm font-semibold text-slate-600 mb-2">เลือกเครื่องจักร (Machine)</label>
                 <select id="machine-filter" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    <option value="">ทั้งหมด (Show All)</option>
+                    <option value="">ทั้งหมด (All Machines)</option>
                 </select>
             </div>
-            <!-- Type Search -->
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <label class="flex items-center gap-2 text-sm font-semibold text-slate-600 mb-3">
-                    ค้นหาตามชื่อ/รุ่น (Type)
-                </label>
-                <input type="text" id="type-search" placeholder="พิมพ์เพื่อค้นหา..." 
+                <label class="block text-sm font-semibold text-slate-600 mb-2">ค้นหาประเภท/รุ่น (Type)</label>
+                <input type="text" id="type-search" placeholder="พิมพ์ชื่อรุ่น หรือประเภท..." 
                     class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             </div>
         </div>
 
-        <!-- Loading Indicator -->
-        <div id="loading" class="flex flex-col items-center justify-center py-24">
-            <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-14 w-14 mb-4"></div>
-            <h2 class="text-center text-slate-400 font-medium italic">กำลังเชื่อมต่อข้อมูลจาก Google Sheets...</h2>
-            <p class="text-xs text-slate-400 mt-2">(หากค้างนานเกินไป โปรดตรวจสอบการตั้งค่า Publish to Web)</p>
+        <!-- Status/Loading Indicator -->
+        <div id="status-container" class="py-20 text-center">
+            <div id="loading-spinner" class="flex flex-col items-center">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-14 w-14 mb-4"></div>
+                <h2 class="text-slate-400 font-medium italic">กำลังเชื่อมต่อกับ Google Sheets...</h2>
+            </div>
+            <div id="error-box" class="hidden flex flex-col items-center">
+                <div class="bg-red-50 text-red-600 p-6 rounded-3xl border border-red-100 max-w-md">
+                    <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <p class="font-bold text-lg mb-2">ไม่สามารถโหลดข้อมูลได้</p>
+                    <p id="error-detail" class="text-sm opacity-80 mb-4">โปรดตรวจสอบการแชร์ไฟล์</p>
+                    <button onclick="fetchData(true)" class="bg-red-600 text-white px-6 py-2 rounded-full font-bold hover:bg-red-700 transition-all">ลองใหม่อีกครั้ง</button>
+                </div>
+            </div>
         </div>
 
-        <!-- Desktop View -->
-        <div class="hidden md:block overflow-x-auto bg-white shadow-xl shadow-slate-200/50 border border-slate-200 rounded-2xl">
-            <table class="min-w-full divide-y divide-slate-200">
-                <thead class="bg-slate-50">
-                    <tr id="table-header"></tr>
-                </thead>
-                <tbody id="table-body" class="bg-white divide-y divide-slate-100"></tbody>
-            </table>
-        </div>
+        <!-- Data Content Area -->
+        <div id="content-area" class="hidden">
+            <!-- Desktop View (Table) -->
+            <div class="hidden md:block overflow-x-auto bg-white shadow-xl shadow-slate-200/50 border border-slate-200 rounded-2xl">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr id="table-header"></tr>
+                    </thead>
+                    <tbody id="table-body" class="bg-white divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
 
-        <!-- Mobile View -->
-        <div id="mobile-view" class="md:hidden space-y-4"></div>
-
-        <!-- Error/No Data -->
-        <div id="no-data" class="hidden py-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
-            <p id="error-message" class="text-slate-400 font-medium text-lg">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</p>
-            <button onclick="location.reload()" class="mt-4 text-blue-600 font-semibold hover:underline">ลองโหลดใหม่อีกครั้ง</button>
+            <!-- Mobile View (Cards) -->
+            <div id="mobile-view" class="md:hidden space-y-4"></div>
+            
+            <!-- No Result Message -->
+            <div id="no-result" class="hidden py-20 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200 mt-4">
+                <p>ไม่พบข้อมูลที่ตรงกับการค้นหา</p>
+            </div>
         </div>
     </div>
 
     <script>
-        /**
-         * สำคัญ: เปลี่ยน URL ตรงนี้เป็นลิงก์ที่ได้จาก "Publish to the web" 
-         * และเลือกรูปแบบเป็น "Comma-separated values (.csv)"
-         */
-        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS1D6D7f4mHkFp4oE0C9B6g_S_Z0E_V_D_EXAMPLE_URL/pub?output=csv'; 
-        
-        // หากต้องการใช้ลิงก์เดิมที่คุณส่งมา (แบบ Export) ต้องมั่นใจว่าแชร์แบบ Anyone with link can view
-        const FALLBACK_URL = 'https://docs.google.com/spreadsheets/d/1plzDBcz-b6oqHe9f31CrbeoFnWt0XtFH-xsbEqVPVjc/export?format=csv&gid=0';
-
+        const SPREADSHEET_ID = '1plzDBcz-b6oqHe9f31CrbeoFnWt0XtFH-xsbEqVPVjc';
         let rawData = [];
+        let isRefreshing = false;
 
-        async function loadData() {
-            // ลองโหลดจาก URL หลักก่อน ถ้าไม่ได้ให้ใช้ลิงก์สำรอง
-            const targetUrl = SHEET_CSV_URL.includes('EXAMPLE') ? FALLBACK_URL : SHEET_CSV_URL;
+        async function fetchData(isRefreshCall = false) {
+            if (isRefreshing) return;
+            isRefreshing = true;
 
-            Papa.parse(targetUrl, {
+            const refreshBtn = document.getElementById('refresh-btn');
+            const refreshIcon = document.getElementById('refresh-icon');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const errorBox = document.getElementById('error-box');
+            
+            if (isRefreshCall) {
+                refreshIcon.classList.add('refresh-spinning');
+                refreshBtn.classList.add('opacity-50', 'pointer-events-none');
+            }
+
+            // เพิ่ม timestamp เพื่อป้องกัน cache (สำคัญมากเพื่อให้เห็นข้อมูลใหม่ทันที)
+            const cacheBuster = `&t=${new Date().getTime()}`;
+            const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv${cacheBuster}`;
+
+            Papa.parse(url, {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
                 complete: function(results) {
+                    isRefreshing = false;
+                    refreshIcon.classList.remove('refresh-spinning');
+                    refreshBtn.classList.remove('opacity-50', 'pointer-events-none');
+                    
                     if (results.data && results.data.length > 0) {
-                        rawData = results.data.filter(row => Object.values(row).some(v => v !== ""));
-                        initDashboard();
+                        rawData = results.data.filter(row => Object.values(row).some(v => v && v.trim() !== ""));
+                        document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('th-TH');
+                        setupDashboard();
                     } else {
-                        showError("ข้อมูลว่างเปล่า หรือรูปแบบไฟล์ไม่ถูกต้อง");
+                        handleError("ข้อมูลในชีทว่างเปล่า");
                     }
                 },
                 error: function(err) {
-                    showError("ไม่สามารถเข้าถึงไฟล์ได้: โปรดตั้งค่า 'เผยแพร่ไปยังเว็บ' ใน Google Sheets");
+                    isRefreshing = false;
+                    refreshIcon.classList.remove('refresh-spinning');
+                    refreshBtn.classList.remove('opacity-50', 'pointer-events-none');
+                    handleError("ไม่สามารถเข้าถึงไฟล์ได้ (ตรวจสอบการ Share และ Publish to Web)");
                 }
             });
         }
 
-        function showError(msg) {
-            document.getElementById('loading').classList.add('hidden');
-            document.getElementById('no-data').classList.remove('hidden');
-            document.getElementById('error-message').textContent = msg;
+        function handleError(msg) {
+            document.getElementById('status-container').classList.remove('hidden');
+            document.getElementById('loading-spinner').classList.add('hidden');
+            document.getElementById('error-box').classList.remove('hidden');
+            document.getElementById('error-detail').textContent = msg;
+            document.getElementById('content-area').classList.add('hidden');
         }
 
-        function initDashboard() {
-            document.getElementById('loading').classList.add('hidden');
-            
-            // สร้าง Filter สำหรับ Machine
+        function setupDashboard() {
+            document.getElementById('status-container').classList.add('hidden');
+            document.getElementById('content-area').classList.remove('hidden');
+
+            const filter = document.getElementById('machine-filter');
+            const currentFilterValue = filter.value; // เก็บค่าที่เลือกไว้ก่อนหน้า
+
+            // 1. อัปเดตตัวเลือกใน Machine Filter
             const machines = [...new Set(rawData.map(item => item.Machine))].filter(Boolean).sort();
-            const machineFilter = document.getElementById('machine-filter');
+            filter.innerHTML = '<option value="">ทั้งหมด (All Machines)</option>';
             machines.forEach(m => {
                 const opt = document.createElement('option');
                 opt.value = m;
                 opt.textContent = m;
-                machineFilter.appendChild(opt);
+                if (m === currentFilterValue) opt.selected = true;
+                filter.appendChild(opt);
             });
 
-            // สร้างหัวตาราง
-            const keys = Object.keys(rawData[0]);
+            // 2. สร้างหัวตาราง (ทำครั้งเดียวหรืออัปเดตถ้าโครงสร้างเปลี่ยน)
             const headerRow = document.getElementById('table-header');
+            const keys = Object.keys(rawData[0]);
+            headerRow.innerHTML = '';
             keys.forEach(key => {
                 const th = document.createElement('th');
                 th.className = "px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest";
@@ -159,14 +188,17 @@
                 headerRow.appendChild(th);
             });
 
-            renderData(rawData);
+            runFilter(); // สั่งรัน Filter เพื่อแสดงข้อมูล
 
-            // Listeners
-            document.getElementById('machine-filter').addEventListener('change', filterData);
-            document.getElementById('type-search').addEventListener('input', filterData);
+            // ผูก Event ค้นหา (ถ้ายังไม่ได้ผูก)
+            if (!filter.dataset.initialized) {
+                filter.addEventListener('change', runFilter);
+                document.getElementById('type-search').addEventListener('input', runFilter);
+                filter.dataset.initialized = "true";
+            }
         }
 
-        function filterData() {
+        function runFilter() {
             const mVal = document.getElementById('machine-filter').value.toLowerCase();
             const tVal = document.getElementById('type-search').value.toLowerCase();
 
@@ -182,63 +214,64 @@
         function renderData(data) {
             const tBody = document.getElementById('table-body');
             const mBody = document.getElementById('mobile-view');
+            const noResult = document.getElementById('no-result');
+            const countDisplay = document.getElementById('total-count');
+            
             tBody.innerHTML = '';
             mBody.innerHTML = '';
-            document.getElementById('total-count').textContent = data.length;
+            countDisplay.textContent = data.length;
 
             if (data.length === 0) {
-                document.getElementById('no-data').classList.remove('hidden');
+                noResult.classList.remove('hidden');
                 return;
             }
-            document.getElementById('no-data').classList.add('hidden');
+            noResult.classList.add('hidden');
 
-            const keys = Object.keys(data[0]);
+            const keys = Object.keys(rawData[0]);
 
             data.forEach(row => {
-                // Table Row (Desktop)
+                // Desktop Row
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.className = "hover:bg-blue-50/30 transition-colors";
                 keys.forEach(key => {
                     const td = document.createElement('td');
-                    td.className = "px-6 py-4 whitespace-nowrap text-sm text-slate-600 border-b border-slate-100";
+                    td.className = "px-6 py-4 whitespace-nowrap text-sm text-slate-600 border-b border-slate-50";
                     td.textContent = row[key] || '-';
                     tr.appendChild(td);
                 });
                 tBody.appendChild(tr);
 
-                // Card (Mobile)
+                // Mobile Card
                 const card = document.createElement('div');
-                card.className = "bg-white p-5 rounded-2xl shadow-sm border border-slate-200";
+                card.className = "bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3";
                 
                 let cardHtml = `
-                    <div class="mb-3 border-b border-slate-50 pb-2">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-[10px] font-bold text-blue-500 uppercase">${row.Machine || 'No Machine'}</span>
-                            <span class="text-[10px] text-slate-400">${row.Station || '-'}</span>
-                        </div>
-                        <h3 class="font-bold text-slate-800">${row.Type || 'Unknown Type'}</h3>
+                    <div class="flex justify-between items-start">
+                        <span class="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded uppercase">${row.Machine || '-'}</span>
+                        <span class="text-[10px] text-slate-400">${row.Station || '-'}</span>
                     </div>
-                    <div class="grid grid-cols-2 gap-y-2">
+                    <h3 class="font-bold text-slate-800 leading-tight">${row.Type || 'Unknown Item'}</h3>
+                    <p class="text-xs text-slate-500">${row.Detail || '-'}</p>
+                    <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-50">
                 `;
 
                 keys.forEach(key => {
-                    if(!['Machine', 'Type', 'Station'].includes(key)) {
+                    if (!['Machine', 'Station', 'Type', 'Detail'].includes(key)) {
                         cardHtml += `
-                            <div class="flex flex-col">
-                                <span class="text-[9px] text-slate-400 uppercase font-bold">${key}</span>
-                                <span class="text-xs text-slate-700 font-medium">${row[key] || '-'}</span>
+                            <div>
+                                <span class="block text-[9px] text-slate-400 uppercase font-bold">${key}</span>
+                                <span class="text-xs text-slate-700 font-semibold">${row[key] || '-'}</span>
                             </div>
                         `;
                     }
                 });
-
                 cardHtml += `</div>`;
                 card.innerHTML = cardHtml;
                 mBody.appendChild(card);
             });
         }
 
-        window.onload = loadData;
+        window.onload = () => fetchData(false);
     </script>
 </body>
 </html>
