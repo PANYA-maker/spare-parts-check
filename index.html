@@ -121,7 +121,6 @@
                 refreshBtn.classList.add('opacity-50', 'pointer-events-none');
             }
 
-            // เพิ่ม timestamp เพื่อป้องกัน cache (สำคัญมากเพื่อให้เห็นข้อมูลใหม่ทันที)
             const cacheBuster = `&t=${new Date().getTime()}`;
             const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv${cacheBuster}`;
 
@@ -164,9 +163,8 @@
             document.getElementById('content-area').classList.remove('hidden');
 
             const filter = document.getElementById('machine-filter');
-            const currentFilterValue = filter.value; // เก็บค่าที่เลือกไว้ก่อนหน้า
+            const currentFilterValue = filter.value;
 
-            // 1. อัปเดตตัวเลือกใน Machine Filter
             const machines = [...new Set(rawData.map(item => item.Machine))].filter(Boolean).sort();
             filter.innerHTML = '<option value="">ทั้งหมด (All Machines)</option>';
             machines.forEach(m => {
@@ -177,7 +175,6 @@
                 filter.appendChild(opt);
             });
 
-            // 2. สร้างหัวตาราง (ทำครั้งเดียวหรืออัปเดตถ้าโครงสร้างเปลี่ยน)
             const headerRow = document.getElementById('table-header');
             const keys = Object.keys(rawData[0]);
             headerRow.innerHTML = '';
@@ -188,9 +185,8 @@
                 headerRow.appendChild(th);
             });
 
-            runFilter(); // สั่งรัน Filter เพื่อแสดงข้อมูล
+            runFilter();
 
-            // ผูก Event ค้นหา (ถ้ายังไม่ได้ผูก)
             if (!filter.dataset.initialized) {
                 filter.addEventListener('change', runFilter);
                 document.getElementById('type-search').addEventListener('input', runFilter);
@@ -209,6 +205,19 @@
             });
 
             renderData(filtered);
+        }
+
+        // ฟังก์ชันช่วยในการจัดรูปแบบสถานะ (Status)
+        function formatStatusBadge(value) {
+            if (!value) return '-';
+            const statusText = value.trim().toLowerCase();
+            
+            if (statusText === 'spare parts') {
+                return `<span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-bold uppercase ring-1 ring-green-200">Spare Parts</span>`;
+            } else if (statusText === 'no spare parts') {
+                return `<span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold uppercase ring-1 ring-red-200">No Spare Parts</span>`;
+            }
+            return value;
         }
 
         function renderData(data) {
@@ -236,7 +245,12 @@
                 keys.forEach(key => {
                     const td = document.createElement('td');
                     td.className = "px-6 py-4 whitespace-nowrap text-sm text-slate-600 border-b border-slate-50";
-                    td.textContent = row[key] || '-';
+                    
+                    if (key === 'Status') {
+                        td.innerHTML = formatStatusBadge(row[key]);
+                    } else {
+                        td.textContent = row[key] || '-';
+                    }
                     tr.appendChild(td);
                 });
                 tBody.appendChild(tr);
@@ -250,13 +264,17 @@
                         <span class="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded uppercase">${row.Machine || '-'}</span>
                         <span class="text-[10px] text-slate-400">${row.Station || '-'}</span>
                     </div>
-                    <h3 class="font-bold text-slate-800 leading-tight">${row.Type || 'Unknown Item'}</h3>
+                    <div class="flex justify-between items-center gap-2">
+                        <h3 class="font-bold text-slate-800 leading-tight">${row.Type || 'Unknown Item'}</h3>
+                        <div class="shrink-0">${formatStatusBadge(row.Status)}</div>
+                    </div>
                     <p class="text-xs text-slate-500">${row.Detail || '-'}</p>
                     <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-50">
                 `;
 
                 keys.forEach(key => {
-                    if (!['Machine', 'Station', 'Type', 'Detail'].includes(key)) {
+                    // ไม่แสดงคอลัมน์ที่เป็นหัวข้อไปแล้วซ้ำใน Mobile
+                    if (!['Machine', 'Station', 'Type', 'Detail', 'Status'].includes(key)) {
                         cardHtml += `
                             <div>
                                 <span class="block text-[9px] text-slate-400 uppercase font-bold">${key}</span>
