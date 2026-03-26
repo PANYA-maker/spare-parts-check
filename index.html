@@ -51,18 +51,18 @@
 
         <!-- Filters Section -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <!-- Machine Filter (ตอนนี้อยู่ก่อน Station) -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <label class="block text-sm font-semibold text-slate-600 mb-2 italic">กรองตามเครื่องจักร (Machine)</label>
+                <select id="machine-filter" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer">
+                    <option value="">ทั้งหมด (All Machines)</option>
+                </select>
+            </div>
             <!-- Station Filter -->
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                 <label class="block text-sm font-semibold text-slate-600 mb-2 italic">กรองตาม Station</label>
-                <select id="station-filter" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    <option value="">ทั้งหมด (All Stations)</option>
-                </select>
-            </div>
-            <!-- Machine Filter -->
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <label class="block text-sm font-semibold text-slate-600 mb-2 italic">กรองตามเครื่องจักร (Machine)</label>
-                <select id="machine-filter" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    <option value="">ทั้งหมด (All Machines)</option>
+                <select id="station-filter" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer">
+                    <option value="">เลือกเครื่องจักรเพื่อแสดง Station</option>
                 </select>
             </div>
             <!-- Type Search -->
@@ -122,8 +122,6 @@
 
             const refreshBtn = document.getElementById('refresh-btn');
             const refreshIcon = document.getElementById('refresh-icon');
-            const loadingSpinner = document.getElementById('loading-spinner');
-            const errorBox = document.getElementById('error-box');
             
             if (isRefreshCall) {
                 refreshIcon.classList.add('refresh-spinning');
@@ -172,9 +170,7 @@
             document.getElementById('content-area').classList.remove('hidden');
 
             const machineFilter = document.getElementById('machine-filter');
-            const stationFilter = document.getElementById('station-filter');
             const currentMValue = machineFilter.value;
-            const currentSValue = stationFilter.value;
 
             // 1. อัปเดตตัวเลือกใน Machine Filter
             const machines = [...new Set(rawData.map(item => item.Machine))].filter(Boolean).sort();
@@ -187,17 +183,10 @@
                 machineFilter.appendChild(opt);
             });
 
-            // 2. อัปเดตตัวเลือกใน Station Filter
-            const stations = [...new Set(rawData.map(item => item.Station))].filter(Boolean).sort();
-            stationFilter.innerHTML = '<option value="">ทั้งหมด (All Stations)</option>';
-            stations.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s;
-                opt.textContent = s;
-                if (s === currentSValue) opt.selected = true;
-                stationFilter.appendChild(opt);
-            });
+            // 2. ตั้งค่าการแสดงผล Station ครั้งแรก
+            updateStationOptions();
 
+            // 3. สร้างหัวตาราง
             const headerRow = document.getElementById('table-header');
             const keys = Object.keys(rawData[0]);
             headerRow.innerHTML = '';
@@ -210,11 +199,46 @@
 
             runFilter();
 
+            // 4. ผูก Event ค้นหา
             if (!machineFilter.dataset.initialized) {
-                machineFilter.addEventListener('change', runFilter);
-                stationFilter.addEventListener('change', runFilter);
+                // เมื่อ Machine เปลี่ยน -> ต้องอัปเดต Station options ด้วย
+                machineFilter.addEventListener('change', () => {
+                    updateStationOptions();
+                    runFilter();
+                });
+                document.getElementById('station-filter').addEventListener('change', runFilter);
                 document.getElementById('type-search').addEventListener('input', runFilter);
                 machineFilter.dataset.initialized = "true";
+            }
+        }
+
+        // ฟังก์ชันอัปเดต Station options ให้สัมพันธ์กับ Machine ที่เลือก
+        function updateStationOptions() {
+            const mVal = document.getElementById('machine-filter').value;
+            const sFilter = document.getElementById('station-filter');
+            const currentSValue = sFilter.value;
+
+            // กรองหา Station เฉพาะของ Machine นั้น
+            let relevantData = rawData;
+            if (mVal) {
+                relevantData = rawData.filter(item => item.Machine === mVal);
+            }
+
+            const stations = [...new Set(relevantData.map(item => item.Station))].filter(Boolean).sort();
+            
+            sFilter.innerHTML = '<option value="">ทั้งหมด (All Stations)</option>';
+            stations.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = s;
+                // ถ้าค่าเดิมยังอยู่ในลิสต์ใหม่ ให้เลือกไว้เหมือนเดิม
+                if (s === currentSValue) opt.selected = true;
+                sFilter.appendChild(opt);
+            });
+            
+            // หากค่าที่เคยเลือกไว้ไม่มีในลิสต์ใหม่ (เพราะเปลี่ยนเครื่อง) ให้ล้างเป็น "ทั้งหมด"
+            if (currentSValue && !stations.includes(currentSValue)) {
+                sFilter.value = "";
             }
         }
 
@@ -297,7 +321,6 @@
                         </div>
                         <div class="flex flex-col items-end shrink-0 gap-1.5">
                             ${formatStatusBadge(row.Status)}
-                            <!-- รหัสอะไหล่ Item อยู่ใต้ Status -->
                             <div class="bg-slate-800 text-white px-2 py-1 rounded-md text-[9px] font-mono font-bold shadow-sm">
                                 ${row.Item || '-'}
                             </div>
@@ -308,7 +331,6 @@
                 `;
 
                 keys.forEach(key => {
-                    // ไม่แสดงคอลัมน์ที่เป็นหัวข้อไปแล้วซ้ำใน Mobile
                     if (!['Machine', 'Station', 'Type', 'Detail', 'Status', 'Item'].includes(key)) {
                         cardHtml += `
                             <div class="bg-slate-50/50 p-2 rounded-xl">
